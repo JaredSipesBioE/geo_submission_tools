@@ -79,6 +79,8 @@ ui <- page_navbar(
               sidebarPanel(
                 fileInput("upload_annotations", label = "Upload Annotation File", multiple = F, accept = c(".xlsx")),
                 
+                checkboxInput("checkbox_skip_merge", "Skip merge and use annotation file as is?", FALSE),
+                
               ),
               
             # View Uploaded Annotation File and Choose Columns to Include or Exclude
@@ -87,6 +89,7 @@ ui <- page_navbar(
                 
                 # Display the uploaded annotations for viewing
                 DT::DTOutput("annotations_table"),
+                
                 
                 
               )
@@ -418,13 +421,23 @@ server <- function(input, output, session) {
 
   annot_wksh_merge_data <- reactive({
     
-    # require that the worksheets be uploaded
-    req(input$upload_wksht)
+    # require that the annotations be uploaded
+
     req(input$upload_annotations)
+  
+    # if checkbox is marked, using annotations directly, otherwise, merge if wksheets uploaded. 
     
-    df <- merge_wksht_annot(wksht = wksheet_merged(), annot = annotations_data())
+    if(input$checkbox_skip_merge){
+      df <- annotations_data()
+    } else{
+      req(input$upload_wksht)
+      
+      df <- merge_wksht_annot(wksht = wksheet_merged(), annot = annotations_data())
+      
+    }
     
     df
+
     
   })
   
