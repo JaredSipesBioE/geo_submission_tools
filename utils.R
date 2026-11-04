@@ -175,9 +175,10 @@ create_GEO_sample_records <- function(annotations){
   
   df <- data.frame(library_name = annotations$Sample_ID,
                    title = annotations$title,
+                   library_strategy = "Spatial Transcriptomics",
+                   organism = "Homo Sapiens",
                    Roi = annotations$Roi,
                    Segment = annotations$Segment,
-                   library_strategy = "Spatial Transcriptomics",
                    molecule = "total RNA",
                    single_or_paired = "paired end",
                    instrument_model = "NextSeq 500",
@@ -188,6 +189,8 @@ create_GEO_sample_records <- function(annotations){
   return(df)
 
 }
+
+
 
 
 # the following function calculates MD5 Checksums for the Required Files

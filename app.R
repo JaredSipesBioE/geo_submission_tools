@@ -15,6 +15,8 @@ library(DT)
 
 library(writexl)
 
+library(awn)
+
 # Separate Page for Functions Used
 source('utils.R')
 
@@ -22,7 +24,12 @@ source('utils.R')
 
 options(shiny.maxRequestSize = 30 * 1024^2)
 
-ui <- page_navbar( 
+ui <- page_navbar(
+  
+  #allow Awesome notifications (AWN) to be used
+  
+  # https://github.com/JohnCoene/awn
+  
   
   ##### PANEL 1 UI - WORKSHEETS ######
   # Upload the Worksheets, Merge and Remove Unneeded 
@@ -37,7 +44,7 @@ ui <- page_navbar(
                 
                 numericInput("skip", "Rows to skip", 14, min = 0),
                 
-                downloadButton("download", "Download Merged Worksheets", class = "btn-block")
+                downloadButton("download_worksheets", "Download Merged Worksheets", class = "btn-block")
                 
               ),
               
@@ -103,14 +110,23 @@ ui <- page_navbar(
   
   nav_panel("DCC and FASTQ Files", 
             
+            useAwn(),
+            
             sidebarLayout(
+
               sidebarPanel(
                 shinyDirButton("dir_dcc", "Choose folder containing ALL dccs and FASTQ.gz files", "Select a folder"),
                 
-                verbatimTextOutput("path_dcc"),
+                verbatimTextOutput("path_dcc", placeholder = TRUE),
                 
                 
-                # shinyDirButton("dir_out", "Choose folder for output", "Select a folder"),
+                shinyDirButton("dir_out", "Choose folder to move unwanted DCC and FASTQ Files to", "Select a folder"),
+                
+                verbatimTextOutput("path_out", placeholder = TRUE),
+                
+                # placeholder to put move file button if the preconditions are met. 
+                uiOutput("move_files")
+                #actionButton("move_files", "Move Files")
                 # 
                 # renderPrint("file_warning"),
                 
@@ -119,6 +135,7 @@ ui <- page_navbar(
               ),
               
               mainPanel(
+                
                 DT::DTOutput("DCC_FastQ_Mappings"),
                         
                 downloadButton("download_dcc_map", "Download Table", class = "btn-block")
@@ -193,10 +210,10 @@ ui <- page_navbar(
               mainPanel(
                 
                 # Generated Table of GEO Sample Records
-                
-                mainPanel(DT::DTOutput("GEO_sample_records")),
-                
-                downloadButton("download_GEO_sample", "Download Table", class = "btn-block")
+                  
+                  DT::DTOutput("GEO_sample_records"),
+                  
+                  downloadButton("download_GEO_sample", "Download Table", class = "btn-block")
                 
               ),
               
@@ -251,7 +268,7 @@ server <- function(input, output, session) {
     rows_to_delete$rows
   })
   
-  ##### Panel 1 - Upload Worksheets #####
+ #### Panel 1 - Upload Worksheets #####
   
   wksheet_data <- reactive({
     
@@ -266,7 +283,7 @@ server <- function(input, output, session) {
     
   })
   
-  ##### Panel 1 - Output Wksheets #####
+ #### Panel 1 - Output Wksheets #####
   
   ## List all uploaded files
   output$wksht_files <- renderTable(input$upload_wksht)
@@ -300,11 +317,22 @@ server <- function(input, output, session) {
                               scroller = TRUE)
                )
   })
+  
+  
+  # Allow the user to download the merged worksheets
+  output$download_worksheets <- downloadHandler(
+    
+    filename = "merged_worksheets.xlsx",
+    content = function(file) {
+      write_xlsx(wksheet_merged(), file)
+    }
+    
+  )
     
 
   
   
-  ##### Panel 1 - Delete Table Rows Logic #####
+  #### Panel 1 - Delete Table Rows Logic #####
 
   ##### DEBUGGING Selected rows #####
   
@@ -354,7 +382,8 @@ server <- function(input, output, session) {
   })
   
   
-  ###### Panel 2 - Upload Annotations File ######
+  
+  #### Panel 2 - Upload Annotations File ######
   
   
   annotations_data <- reactive({
@@ -385,7 +414,7 @@ server <- function(input, output, session) {
   })
   
   
-  ###### Panel 3 - Merge Worksheets and Annotations ######
+  #### Panel 3 - Merge Worksheets and Annotations ######
 
   annot_wksh_merge_data <- reactive({
     
@@ -422,7 +451,7 @@ server <- function(input, output, session) {
   )
   
   
-  ###### Panel 4 - DCCs and FASTQ Files ######
+  #### Panel 4 - DCCs and FASTQ Files ######
   
   volumes <- c(Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
   
@@ -441,10 +470,39 @@ server <- function(input, output, session) {
   # print path of directory
   
   output$path_dcc <- renderPrint({
-    req(selected_dir_dcc())
-    selected_dir_dcc()
+    # returns input if available, otherwise, returns default message
+      
+    if(is.integer(input$dir_dcc)){
+      "Please select a file."
+    } else{
+      selected_dir_dcc()
+      
+    }
+    
   })
   
+  
+  
+  # for the output directory to save unwanted files to
+  
+  shinyDirChoose(input, "dir_out", roots = volumes, session = session)
+  
+  # Get path of directory to move unwanted dcc and fastq files to
+  
+  selected_dir_out <- reactive({
+    req(input$dir_out)
+    parseDirPath(volumes, input$dir_out)
+  })
+  
+  # print path of directory out
+  
+  output$path_out <- renderPrint({
+    req(selected_dir_out())
+    selected_dir_out()
+  })
+  
+  
+
   
   # create DF from DCC inputs
   DCC_table_data <- reactive({
@@ -465,7 +523,8 @@ server <- function(input, output, session) {
                   options = list(extensions = 'Scroller',
                                  deferRender = TRUE,
                                  scrollY = 500,
-                                 scroller = TRUE)
+                                 scroller = TRUE,
+                                 fillContainer = TRUE)
     )
   })
   
@@ -479,6 +538,19 @@ server <- function(input, output, session) {
     }
     
   )
+  
+  #### Panel 4: Move unwanted files to new location
+  
+  observeEvent(input$move_files, {
+    ask(
+      "confirm_move", # id of input
+      p("Are you sure you wish to move the files?")
+    )
+  })
+  
+  observeEvent(input$confirm_move, {
+    print(input$confirm_move)
+  })
   
   
   ###### Panel 5 - GEO Sample table ######
@@ -508,12 +580,25 @@ server <- function(input, output, session) {
   
   geo_sample_data <- reactive({
     
+    # require the annotations and the DCC datafiles
     req(annot_wksh_merge_data())
+    req(DCC_table_data())
     
-    df <- annot_wksh_merge_data()
     
-    create_GEO_sample_records(annotations = df)
+    sample_records <- create_GEO_sample_records(annotations = annot_wksh_merge_data())
     
+    sample_records <- mutate(sample_records, Sample_ID = library_name)
+    
+    dcc_table <- DCC_table_data() 
+    
+    
+    # merge the tables by Sample_ID
+    
+    sample_records <- dplyr::left_join(sample_records, dcc_table,
+                                                    by = c("Sample_ID")
+                                       )
+    
+    sample_records
     })
   
   output$GEO_sample_records <- DT::renderDT({
@@ -526,10 +611,14 @@ server <- function(input, output, session) {
                   options = list(extensions = 'Scroller',
                                  deferRender = TRUE,
                                  scrollY = 500,
-                                 scroller = TRUE)
+                                 scroller = TRUE,
+                                 fillContainer = TRUE)
     )
   })
   
+  
+  # col_order <- c("library_name", "title", "library strategy", "organism", "cell type", "segment label", 
+  #                "Roi", "molecule", "single or paired-end", "instrument model", "description")
   
   
   
