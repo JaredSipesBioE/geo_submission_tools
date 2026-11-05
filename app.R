@@ -206,9 +206,12 @@ ui <- page_navbar(
               
               # Choose Other Attribute Columns to Include
               
+              fluidRow(
                 
-                checkboxGroupInput("checkbox_attribute_cols", "Check other Attribute Columns to include",
-                                   choices = NULL, selected = NULL)
+                selectInput("other_attr_cols", "Select other Attribute Columns to include",
+                                   choices = NULL, multiple = TRUE)
+                
+              ),
               
               ), 
               
@@ -427,7 +430,7 @@ server <- function(input, output, session) {
 
     req(input$upload_annotations)
   
-    # if checkbox is marked, using annotations directly, otherwise, merge if wksheets uploaded. 
+    # if checkbox is marked, use annotations directly, otherwise, merge if wksheets uploaded. 
     
     if(input$checkbox_skip_merge){
       df <- annotations_data()
@@ -669,13 +672,58 @@ server <- function(input, output, session) {
   #### Panel 5 - GEO Sample table ####
   
   
+  # get PKC file name
+  
+  pkc_name <- reactive({
+    
+    # require that the worksheets be uploaded
+    req(input$upload_pkc)
+    
+    name <- input$upload_pkc$name
+    
+    #return name
+    name
+    
+  })
+  
+  
   # Reactive that gets the possible attribute columns available. 
   
   attribute_cols_list <- reactive({
     
-    # req that the merged annotation file exist. 
+    # req that the merged annotation file exist.
+    
+    req(annot_wksh_merge_data())
     
     # get the list of column names, excluding columns that cannot be attributes, like Sample_ID
+    
+    excluded_names <- get_excluded_cols()
+    
+    attr_list <- colnames(annot_wksh_merge_data())[!colnames(annot_wksh_merge_data()) %in% excluded_names]
+    
+    #add NA as an option.
+    
+    attr_list <- c("NA", attr_list)
+    
+    print(attr_list)
+    
+    attr_list
+    
+  })
+  
+  # get the attribute column list after selecting required columns
+  
+  other_attr_cols_list <- reactive({
+    req(attribute_cols_list())
+    
+    
+    attr_list <- attribute_cols_list()
+    
+    # need to remove "NA" as it is not an allowed column name
+    
+    excluded_names <- c(input$tissue_col, input$cell_line_col, input$cell_type_col, "NA") |> unique()
+    
+    attr_list <- attr_list[!attr_list %in% excluded_names]
     
   })
   
@@ -686,37 +734,50 @@ server <- function(input, output, session) {
 
     # get the choices
     
-    #  updateSelectInput(inputId = "ordernumber", choices = choices)
+    updateSelectInput(inputId = "tissue_col", choices = attribute_cols_list())
     
+    updateSelectInput(inputId = "cell_line_col", choices = attribute_cols_list())
+    
+    updateSelectInput(inputId = "cell_type_col", choices = attribute_cols_list())
+    
+    
+  })
+  
+  
+  observeEvent(other_attr_cols_list(), {
+    
+    # get the choices
+  
+    updateSelectInput(inputId = "other_attr_cols", choices = other_attr_cols_list())
     
   })
   
   geo_sample_data <- reactive({
     
-    # require the annotations and the DCC datafiles
+    # require the annotations, DCC datafiles, and PKC name
     req(annot_wksh_merge_data())
     req(DCC_table_data())
+    req(pkc_name())
     
     
     sample_records <- create_GEO_sample_records(annotations = annot_wksh_merge_data(),
+                                                dcc_fastq_map = DCC_table_data(),
+                                                PKC_file_name = pkc_name(),
                                                 library_strat = input$library_strat,
                                                 organism = input$organism,
                                                 molecule = input$molecule, 
                                                 single_or_paired = input$single_or_paired,
-                                                instr_model = input$instrument_model)
+                                                instr_model = input$instrument_model,
+                                                tissue_col = input$tissue_col,
+                                                cell_line_col = input$cell_line_col,
+                                                cell_type_col = input$cell_type_col,
+                                                other_attr_cols = input$other_attr_cols)
 
   
+    #rename Sample_ID to library name to fit GEO conventions
     
     sample_records <- mutate(sample_records, Sample_ID = library_name)
     
-    dcc_table <- DCC_table_data() 
-    
-    
-    # merge the tables by Sample_ID
-    
-    sample_records <- dplyr::left_join(sample_records, dcc_table,
-                                                    by = c("Sample_ID")
-                                       )
     
     sample_records
     })
@@ -731,6 +792,8 @@ server <- function(input, output, session) {
                   options = list(extensions = 'Scroller',
                                  deferRender = TRUE,
                                  scrollY = 500,
+                                 scrollX = TRUE,
+                                 autowidth = FALSE,
                                  scroller = TRUE,
                                  fillContainer = TRUE)
     )

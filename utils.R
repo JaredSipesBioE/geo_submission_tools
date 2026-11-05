@@ -153,12 +153,18 @@ make_dcc_fastq_mappings <- function(folder, merged_annotations){
   
 }
 
+# 
+# tissue_col = input$tissue_col,
+# cell_line_col = input$cell_line_col,
+# cell_type_col = input$cell_type_col
 
 
 # The following function creates the GEO Sample Records Table 
 # dcc_fastq_map
 
-create_GEO_sample_records <- function(annotations, library_strat, organism, molecule, single_or_paired, instr_model){
+create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
+                                      library_strat, organism, molecule, single_or_paired, instr_model,
+                                      tissue_col, cell_line_col, cell_type_col, other_attr_cols){
   # generate the titles for all samples 
   
   annotations <- annotations |> mutate(title = if_else(
@@ -182,11 +188,42 @@ create_GEO_sample_records <- function(annotations, library_strat, organism, mole
                    molecule = molecule,
                    single_or_paired = single_or_paired,
                    instrument_model = instr_model,
-                   description = ""
+                   description = "",
+                   DCC_File = dcc_fastq_map$DCC_File,
+                   PKC_File = PKC_file_name,
+                   Annot_File = "placeholder_annot"
                    )
   
+  # Add Tissue, Cell Line, Cell Type Column, and Other Attribute Cols as needed
   
-  return(df)
+  cols <- c(tissue_col, cell_line_col, cell_type_col)
+  
+  cols <- c(cols, other_attr_cols)
+  
+  # provide the correct column name
+  
+  names(cols) <- c(c("Tissue", "Cell Line", "Cell Type"), other_attr_cols)
+  
+  for(i in 1:length(cols)){
+    col <- cols[i]
+    name <- names(cols[i])
+    if(col != "NA"){
+      df[[name]] <- annotations[[col]]
+    }
+  }
+  
+  # Add other attribute columns selected
+
+  
+  # merge df with rest of dcc_fastq_map
+  
+  
+  df_new <- dplyr::left_join(df, dcc_fastq_map[-1],
+                   by = c("DCC_File")
+  )
+  
+  
+  return(df_new)
 
 }
 
@@ -345,5 +382,44 @@ get_instrument_list <- function(){
   return(instruments)
   
 }
+
+
+
+#### list of excluded column names
+
+# the following identifies columns in the merged annotations that should not be included as options for attribute columns
+
+get_excluded_cols <- function(){
   
+  excluded_names <- c(
+    "Sample_ID",
+    "Slide.Name",
+    "Scan.Name",
+    "Panel",
+    "Roi",
+    "Aoi",
+    "Area",
+    "Tags",
+    "Nuclei",
+    "ROI.Coordinate.X",
+    "ROI.Coordinate.Y",
+    "Scan.Date",
+    "Scan.Width",
+    "Scan.Height",
+    "Scan.Offset.X",
+    "Scan.Offset.Y",
+    "X.v1.0..Cancer.Transcriptome.Atlas",
+    "construct",
+    "instrument",
+    "read_pattern",
+    "expected_neg",
+    "ROI (Label)",
+    "Segment Tags",
+    "Custom Segment Name",
+    "LOT_Cancer_Transcriptome_Atlas_1_0",
+    "Scan_ID"
+  )
   
+  return(excluded_names)
+  
+}
