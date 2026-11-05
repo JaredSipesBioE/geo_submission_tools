@@ -158,7 +158,7 @@ make_dcc_fastq_mappings <- function(folder, merged_annotations){
 # The following function creates the GEO Sample Records Table 
 # dcc_fastq_map
 
-create_GEO_sample_records <- function(annotations){
+create_GEO_sample_records <- function(annotations, library_strat, organism, molecule, single_or_paired, instr_model){
   # generate the titles for all samples 
   
   annotations <- annotations |> mutate(title = if_else(
@@ -175,13 +175,13 @@ create_GEO_sample_records <- function(annotations){
   
   df <- data.frame(library_name = annotations$Sample_ID,
                    title = annotations$title,
-                   library_strategy = "Spatial Transcriptomics",
-                   organism = "Homo Sapiens",
+                   library_strategy = library_strat,
+                   organism = organism,
                    Roi = annotations$Roi,
                    Segment = annotations$Segment,
-                   molecule = "total RNA",
-                   single_or_paired = "paired end",
-                   instrument_model = "NextSeq 500",
+                   molecule = molecule,
+                   single_or_paired = single_or_paired,
+                   instrument_model = instr_model,
                    description = ""
                    )
   

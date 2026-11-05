@@ -613,7 +613,7 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$confirm_move, {
-    print(input$confirm_move)
+    #print(input$confirm_move)
     
     if(input$confirm_move){
       # get the dcc file table, dir input, and dir output
@@ -698,7 +698,14 @@ server <- function(input, output, session) {
     req(DCC_table_data())
     
     
-    sample_records <- create_GEO_sample_records(annotations = annot_wksh_merge_data())
+    sample_records <- create_GEO_sample_records(annotations = annot_wksh_merge_data(),
+                                                library_strat = input$library_strat,
+                                                organism = input$organism,
+                                                molecule = input$molecule, 
+                                                single_or_paired = input$single_or_paired,
+                                                instr_model = input$instrument_model)
+
+  
     
     sample_records <- mutate(sample_records, Sample_ID = library_name)
     
