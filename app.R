@@ -10,6 +10,8 @@
 library(shiny)
 # needed for getting files
 library(shinyFiles)
+# used for activating buttons as needed
+library(shinyjs)
 library(bslib)
 library(DT)
 
@@ -113,6 +115,9 @@ ui <- page_navbar(
   
   nav_panel("DCC and FASTQ Files", 
             
+            
+            shinyjs::useShinyjs(),
+            
             useAwn(),
             
             sidebarLayout(
@@ -127,13 +132,10 @@ ui <- page_navbar(
                 
                 verbatimTextOutput("path_out", placeholder = TRUE),
                 
-                # placeholder to put move file button if the preconditions are met. 
-                uiOutput("move_files")
-                #actionButton("move_files", "Move Files")
-                # 
-                # renderPrint("file_warning"),
+                # the following button is controlled by shinyjs
+                # should be greyed out and inactive unless both file locations are selected.
                 
-                #shinyDirButton("dir_fastq", "Choose folder containing fastq.gz files", "Select a folder")
+                actionButton("move_files", "Move Files")
                 
               ),
               
@@ -286,7 +288,7 @@ server <- function(input, output, session) {
     
   })
   
- #### Panel 1 - Output Wksheets #####
+ #### Panel 1 - Output Wksheets ####
   
   ## List all uploaded files
   output$wksht_files <- renderTable(input$upload_wksht)
@@ -386,7 +388,7 @@ server <- function(input, output, session) {
   
   
   
-  #### Panel 2 - Upload Annotations File ######
+  #### Panel 2 - Upload Annotations File ####
   
   
   annotations_data <- reactive({
@@ -464,10 +466,12 @@ server <- function(input, output, session) {
   )
   
   
-  #### Panel 4 - DCCs and FASTQ Files ######
+  #### Panel 4 - DCCs and FASTQ Files #####
   
   volumes <- c(Home = fs::path_home(), "R Installation" = R.home(), getVolumes()())
   
+  
+  ## Panel 4 - Side Tab ##
   
   # for the FastQ and dcc directory
   
@@ -484,12 +488,12 @@ server <- function(input, output, session) {
   
   output$path_dcc <- renderPrint({
     # returns input if available, otherwise, returns default message
-      
+    
     if(is.integer(input$dir_dcc)){
       "Please select a file."
     } else{
       selected_dir_dcc()
-      
+
     }
     
   })
@@ -515,7 +519,38 @@ server <- function(input, output, session) {
   })
   
   
+  ## Activate the action button when conditions are met
+  
+  observe({
+    
+    # if either file selection has no input
+    if(is.integer(input$dir_dcc) | is.integer(input$dir_out)){
+      # disable the dir dcc button
+      shinyjs::disable("move_files")
+    } else{
+      shinyjs::enable("move_files")
+    }
+  })
+  
+  # output$move_files <- renderUI({
+  #   
+  #   # if both files are selected
+  #     if(is.integer(input$dir_dcc) | is.integer(input$dir_out)){
+  #       "To move files, please select both files." 
+  #     } else{
+  #       selected_dir_dcc()
+  #     
+  #   }
+  #   
+  #     # make action button appear
+  #     # actionButton("move_files", "Move Files")
+  #   
+  #    # otherwise, print default message about need to select files.
+  #   
+  # })
 
+  
+  ## Panel 4 - Main Tab ##
   
   # create DF from DCC inputs
   DCC_table_data <- reactive({
@@ -527,6 +562,9 @@ server <- function(input, output, session) {
     
     DCC_table
   })
+  
+  
+  
   
   
   # Create DCC FASTQ Table
@@ -552,21 +590,83 @@ server <- function(input, output, session) {
     
   )
   
-  #### Panel 4: Move unwanted files to new location
+  ## Panel 4: Move unwanted files to new location
   
   observeEvent(input$move_files, {
+    
+    dcc_file_table <- DCC_table_data()
+    dcc_files_dir <- selected_dir_dcc()
+    
+    n_files <- length(list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T))
+    
+    # count all of the non-na values. 
+    n_keep <- sum(!is.na(unlist((dcc_file_table[2:ncol(dcc_file_table)]))))
+    
+    n_files_to_move <- n_files - n_keep
+    
+    message <- paste0("Are you sure you wish to move ", as.character(n_files_to_move), " files to the selected folder?")
+      
     ask(
       "confirm_move", # id of input
-      p("Are you sure you wish to move the files?")
+      p(message)
     )
   })
   
   observeEvent(input$confirm_move, {
     print(input$confirm_move)
+    
+    if(input$confirm_move){
+      # get the dcc file table, dir input, and dir output
+      dcc_file_table <- DCC_table_data()
+      dcc_files_dir <- selected_dir_dcc()
+      dcc_files_out <- selected_dir_out()
+      
+      # extract the list of SampleIDs to keep
+      dcc_list_keep <- dcc_file_table$Sample_ID
+      
+      
+      # get all dcc and fastq files
+      files_all <- list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T)
+
+      # create list of files to keep
+      
+      keep_list <- unlist(dcc_file_table[2:ncol(dcc_file_table)], use.names = FALSE)
+
+      
+      # create data table,set all files not in keep_list to move
+      
+      files_to_move <- as.data.frame(files_all) |> mutate(move = !(basename(files_all) %in% keep_list))
+      
+      files_to_move <- files_to_move[files_to_move$move, ]
+      
+      for(file in files_to_move$files_all){
+        
+        filename <- basename(file)
+        extension <- tools::file_ext(filename)
+        name <- tools::file_path_sans_ext(filename)
+        
+        
+        dest <- file.path(dcc_files_out, basename(file))
+        # adds numbers if multiple duplicate files are detected.
+        i <- 1
+        
+        while(file.exists(dest)){
+          new_filename <- paste0(name, "_", i, ".", extension)
+          dest <- file.path(dcc_files_out, new_filename)
+          i <- i + 1
+        }
+        # if files have duplicate names, do not overwrite. 
+        file.rename(from = file, to = dest)
+      }
+      
+    }
+    
   })
   
   
-  ###### Panel 5 - GEO Sample table ######
+  
+  
+  #### Panel 5 - GEO Sample table ####
   
   
   # Reactive that gets the possible attribute columns available. 
