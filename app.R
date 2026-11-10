@@ -12,6 +12,9 @@ library(shiny)
 library(shinyFiles)
 # used for activating buttons as needed
 library(shinyjs)
+# used for nicer switch buttons
+library(shinyWidgets)
+
 library(bslib)
 library(DT)
 
@@ -33,7 +36,7 @@ ui <- page_navbar(
   # https://github.com/JohnCoene/awn
   
   
-  ##### PANEL 1 UI - WORKSHEETS ######
+  #### PANEL 1 UI - WORKSHEETS ######
   # Upload the Worksheets, Merge and Remove Unneeded 
   nav_panel("Worksheets",
             
@@ -72,7 +75,7 @@ ui <- page_navbar(
                           
             ),
   
-  ##### Panel 2 UI - Annotation Files ####
+  #### Panel 2 UI - Annotation Files ####
   
   nav_panel("Annotation File", 
             
@@ -98,7 +101,7 @@ ui <- page_navbar(
             )
   ), 
   
-  ##### Panel 3 UI - Merge Annotations and Worksheet ####
+  #### Panel 3 UI - Merge Annotations and Worksheet ####
   
   nav_panel("Merge Worksheets and Annotations", 
             
@@ -248,25 +251,49 @@ ui <- page_navbar(
             ), 
   
   
-  #### Panel 6 UI - Calculate MD5 Checksums ####
+  #### Panel 6 UI - Create Final Output ####
   
-  nav_panel("Calculate MD5 Checksums",
+  nav_panel("Create Final Output",
             
             sidebarLayout(
               
               sidebarPanel(
                 
-                shinyDirButton("select_save_dir", "Select Location to Save All Files", "Select a folder"),
+                shinyDirButton("select_save_dir", "Select Location Save Output Files", "Select a folder"),
                 
                 verbatimTextOutput("path_save_dir"),
                 
-                actionButton("copy_files", "Copy DCC and FASTQ Files to Selected Folder"),
                 
-                actionButton("gen_checksum", "Generate MD5 Checksums"),
+    
+                shinyWidgets::switchInput(
+                  inputId = "file_operation",
+                  label = "Move or Copy?",
+                  value = TRUE,
+                  onLabel = "Move",
+                  offLabel = "Copy",
+                  onStatus = "success",
+                  offStatus = "warning",
+                  handleWidth = '100px'
+                ),
+                
+                textOutput("file_operation_info"),
+                
+                
+                column(width =7,
+                  actionButton("create_output", "Create Output Folder")
+                  ),
+                
+                column(width = 7,
+                  actionButton("gen_checksum", "Generate MD5 Checksums")
+                  ),
+                
+                downloadButton("download_GEO_submission", "Download Geo Submission", class = "btn-block")
+
                 
               ),
               
               mainPanel(
+                
                 fluidRow(DT::DTOutput("MD5_Checksum_FASTQ_Table"),
                          
                          DT::DTOutput("MD5_Checksum_Other_Table")
@@ -723,8 +750,6 @@ server <- function(input, output, session) {
     
     attr_list <- c("NA", attr_list)
     
-    print(attr_list)
-    
     attr_list
     
   })
@@ -792,10 +817,6 @@ server <- function(input, output, session) {
                                                 cell_type_col = input$cell_type_col,
                                                 other_attr_cols = input$other_attr_cols)
 
-  
-    #rename Sample_ID to library name to fit GEO conventions
-    
-    sample_records <- mutate(sample_records, Sample_ID = library_name)
     
     
     sample_records
@@ -825,8 +846,136 @@ server <- function(input, output, session) {
   
   
   
-  ###### Panel 6 - Generate Checksums ####### 
+  #### Panel 6 - Generate Checksums ####### 
   
+  # Allow selection of directory to save
+  
+  shinyDirChoose(input, "select_save_dir", roots = volumes, session = session)
+  
+  # Get path of directory
+  
+  selected_save_dir <- reactive({
+    req(input$select_save_dir)
+    parseDirPath(volumes, input$select_save_dir)
+  })
+  
+  # print path of directory
+  
+  output$path_save_dir <- renderPrint({
+    # returns input if available, otherwise, returns default message
+    
+    if(is.integer(input$select_save_dir)){
+      "Please select a file."
+    } else{
+      selected_save_dir()
+      
+    }
+    
+  })
+  
+  
+  
+  # Explain file move or copy selection
+  
+  output$file_operation_info <- renderText({
+    if (input$file_operation) {
+      "Move files: Faster, but original directory structure is lost."
+    } else {
+      "Copy files: Slower, but original files are preserved."
+    }
+  })
+  
+  
+  ## Activate the Create Output Files button when Conditions are Met
+  
+  observe({
+    
+    # if the file selection has no input and a dcc file source has not been selected
+    if(is.integer(input$select_save_dir) | is.integer(input$dir_dcc)){
+      # disable the dir dcc button
+      shinyjs::disable("create_output")
+    } else{
+      shinyjs::enable("create_output")
+    }
+  })
+  
+  
+  
+  ## Panel 6: Copy Output Files to new location
+  
+  observeEvent(input$create_output, {
+    
+    
+    n_files <- length(list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T))
+    
+    # count all of the non-na values. 
+    n_keep <- sum(!is.na(unlist((dcc_file_table[2:ncol(dcc_file_table)]))))
+    
+    switch_copy_move <- if(input$file_operation){"move "} else {"copy "}
+    
+    
+    message <- paste0("Are you sure you wish to create the ouput folder and ", switch_copy_move, as.character(n_keep), " files?")
+    
+    ask(
+      "confirm_create_output", # id of input
+      p(message)
+    )
+  })
+  
+  observeEvent(input$confirm_create_output, {
+
+    if(input$confirm_create_output){
+      
+      create_output_folder(save_dir = selected_save_dir(), 
+                           move_or_copy = input$file_operation, 
+                           pkc = input$upload_pkc)
+      
+      # # get the dcc file table, dir input, and dir output
+      # dcc_file_table <- DCC_table_data()
+      # dcc_files_dir <- selected_dir_dcc()
+      # dcc_files_out <- selected_dir_out()
+
+      # # extract the list of SampleIDs to keep
+      # dcc_list_keep <- dcc_file_table$Sample_ID
+      # 
+      # 
+      # # get all dcc and fastq files
+      # files_all <- list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T)
+
+      # # create list of files to keep
+      # 
+      # keep_list <- unlist(dcc_file_table[2:ncol(dcc_file_table)], use.names = FALSE)
+
+
+      # create data table,set all files not in keep_list to move
+
+      # files_to_move <- as.data.frame(files_all) |> mutate(move = !(basename(files_all) %in% keep_list))
+      # 
+      # files_to_move <- files_to_move[files_to_move$move, ]
+
+      # for(file in files_to_move$files_all){
+      # 
+      #   filename <- basename(file)
+      #   extension <- tools::file_ext(filename)
+      #   name <- tools::file_path_sans_ext(filename)
+      # 
+      # 
+      #   dest <- file.path(dcc_files_out, basename(file))
+      #   # adds numbers if multiple duplicate files are detected.
+      #   i <- 1
+      # 
+      #   while(file.exists(dest)){
+      #     new_filename <- paste0(name, "_", i, ".", extension)
+      #     dest <- file.path(dcc_files_out, new_filename)
+      #     i <- i + 1
+      #   }
+      #   # if files have duplicate names, do not overwrite.
+      #   file.rename(from = file, to = dest)
+      # }
+
+  }
+    })
+    
   
   # Checksums for FASTQ Files
   MD5_checksums_fastq <- reactive({

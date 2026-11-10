@@ -82,7 +82,6 @@ merge_wksht_annot <- function(wksht = NA, annot = NA){
 # The following function takes .dccs files and matches them to fastq.gz files
 
 
-
 make_dcc_fastq_mappings <- function(folder, merged_annotations){
   
   # list all fastq.gz files
@@ -153,10 +152,7 @@ make_dcc_fastq_mappings <- function(folder, merged_annotations){
   
 }
 
-# 
-# tissue_col = input$tissue_col,
-# cell_line_col = input$cell_line_col,
-# cell_type_col = input$cell_type_col
+
 
 
 # The following function creates the GEO Sample Records Table 
@@ -241,9 +237,38 @@ create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
 }
 
 
+### FUNCT: create_output_folder
+# The following function creates the output folder
+# saves .pkc, annotation file, and moves or copies processed and raw files.
 
 
-# the following function calculates MD5 Checksums for the Required Files
+create_output_folder <- function(save_dir, move_or_copy, merged_annotations, annotations_name, pkc, dcc_fastq_folder){
+  
+  
+  dir_loc <- paste0(save_dir, "/files_for_GEO_submission")
+  
+  # check if folder exists, otherwise, create folder                 
+  if(!dir.exists(dir_loc)){
+    dir.create(dir_loc)
+  }
+  
+  # put PKC file in output
+  
+  file.copy(from = pkc$datapath, to = paste0(dir_loc, "/", pkc$name))
+  
+  # put merged annotation file in output
+  
+  #check if move_or_copy working correctly 
+  if(move_or_copy){
+    print("move")
+  } else {
+    print("copy")
+  }
+  
+}
+
+
+# the following function calculates MD5 Checksums for files in the output folder
 
 # set fastq to T to get the fastq checksums, otherwise get checksumts for processed files only. 
 
