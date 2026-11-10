@@ -162,7 +162,7 @@ make_dcc_fastq_mappings <- function(folder, merged_annotations){
 # The following function creates the GEO Sample Records Table 
 # dcc_fastq_map
 
-create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
+create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name, annot_file_name,
                                       library_strat, organism, molecule, single_or_paired, instr_model,
                                       tissue_col, cell_line_col, cell_type_col, other_attr_cols){
   # generate the titles for all samples 
@@ -182,35 +182,46 @@ create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
   df <- data.frame(library_name = annotations$Sample_ID,
                    title = annotations$title,
                    library_strategy = library_strat,
-                   organism = organism,
-                   Roi = annotations$Roi,
-                   Segment = annotations$Segment,
-                   molecule = molecule,
-                   single_or_paired = single_or_paired,
-                   instrument_model = instr_model,
-                   description = "",
-                   DCC_File = dcc_fastq_map$DCC_File,
-                   PKC_File = PKC_file_name,
-                   Annot_File = "placeholder_annot"
-                   )
+                   organism = organism)
   
-  # Add Tissue, Cell Line, Cell Type Column, and Other Attribute Cols as needed
   
-  cols <- c(tissue_col, cell_line_col, cell_type_col)
+
+  # Add Tissue, Cell Line, Cell Type Column, Segment, ROI, and Other Attribute Cols as needed
   
-  cols <- c(cols, other_attr_cols)
+  cols <- c(Tissue = tissue_col, `Cell Line` = cell_line_col,  `Cell Type` = cell_type_col, Segment = "Segment", ROI = "Roi")
   
-  # provide the correct column name
+  # Add other attribute columns if needed
   
-  names(cols) <- c(c("Tissue", "Cell Line", "Cell Type"), other_attr_cols)
+  if(!is.null(other_attr_cols)){
+    extra_cols <- setNames(other_attr_cols, other_attr_cols)
+    
+    cols <- c(cols, extra_cols)
+  }
   
-  for(i in 1:length(cols)){
+  
+  for(i in seq_along(cols)){
     col <- cols[i]
     name <- names(cols[i])
     if(col != "NA"){
-      df[[name]] <- annotations[[col]]
+      vals <- as.character(annotations[[col]]) # convert to character to avoid coercing column 
+      vals[is.na(vals) | trimws(vals) == ""] <- "NA" # make NA or whitespace "NA" for GEO
+      df[[name]] <- vals
     }
   }
+  
+  # Add other required cols and processed datafile columns
+  
+  df <- data.frame(df,
+    molecule = molecule,
+    single_or_paired = single_or_paired,
+    instrument_model = instr_model,
+    description = "",
+    DCC_File = dcc_fastq_map$DCC_File,
+    PKC_File = PKC_file_name,
+    Annot_File = annot_file_name,
+    check.names = FALSE # prevent changing column names 
+  )
+
   
   # Add other attribute columns selected
 
@@ -218,8 +229,10 @@ create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
   # merge df with rest of dcc_fastq_map
   
   
-  df_new <- dplyr::left_join(df, dcc_fastq_map[-1],
-                   by = c("DCC_File")
+  
+  df_new <- dplyr::left_join(df, 
+                             dcc_fastq_map[, !names(dcc_fastq_map) %in% c("Sample_ID")], # get rid of Sample ID
+                             by = c("DCC_File")
   )
   
   
@@ -397,6 +410,7 @@ get_excluded_cols <- function(){
     "Scan.Name",
     "Panel",
     "Roi",
+    "Segment",
     "Aoi",
     "Area",
     "Tags",

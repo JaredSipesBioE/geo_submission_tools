@@ -170,14 +170,32 @@ ui <- page_navbar(
               # Upload PKC File
                 
                 fileInput("upload_pkc", label = "Upload PKC File", multiple = F, accept = c(".pkc")),
-              
+                
+                #textInput("annot_file_name", label = "Name Output Annotation File:", value = "Annotation_File"),
+                
+                div(
+                  class = "input-group",
+                  tags$label("Name Output Annotation File:"),
+                  div(
+                    class = "input-group",
+                    tags$input(
+                      id = "annot_file_name", type = "text", class = "form-control",
+                      value = "Annotation_File", width = "50%"
+                    ),
+                    #textInput("annot_file_name", label = NULL, placeholder = "my_GEO_samples", width = "30%", value = "Annotation_File"),
+                    span(class = "input-group-text", ".xlsx")
+                  )
+                ),
+
+
               # Set Library Strategy, Molecule, single or paired-end, instrument model, and description 
-              
-                fluidRow(
+
+                  fluidRow(
                   textInput("library_strat", label = "Library Strategy", value = "Spatial Transcriptomics"),
               
                   textInput("organism", label = "Organism", value = "Homo sapiens"),
                 ),
+
                 
                 fluidRow(
                   
@@ -763,6 +781,7 @@ server <- function(input, output, session) {
     sample_records <- create_GEO_sample_records(annotations = annot_wksh_merge_data(),
                                                 dcc_fastq_map = DCC_table_data(),
                                                 PKC_file_name = pkc_name(),
+                                                annot_file_name = input$annot_file_name,
                                                 library_strat = input$library_strat,
                                                 organism = input$organism,
                                                 molecule = input$molecule, 
