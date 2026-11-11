@@ -928,7 +928,9 @@ server <- function(input, output, session) {
       
       create_output_folder(save_dir = selected_save_dir(), 
                            move_or_copy = input$file_operation, 
-                           pkc = input$upload_pkc)
+                           pkc = input$upload_pkc,
+                           annot_wksh_merge_data = annot_wksh_merge_data(),
+                           annot_file_name = input$annot_file_name)
       
       # # get the dcc file table, dir input, and dir output
       # dcc_file_table <- DCC_table_data()

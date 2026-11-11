@@ -6,6 +6,8 @@
 
 library(dplyr)
 
+library(writexl)
+
 read_in_wkshts <- function(files, skip){
   
   dfs <- lapply(seq_len(nrow(files)), function(i){
@@ -242,7 +244,7 @@ create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
 # saves .pkc, annotation file, and moves or copies processed and raw files.
 
 
-create_output_folder <- function(save_dir, move_or_copy, merged_annotations, annotations_name, pkc, dcc_fastq_folder){
+create_output_folder <- function(save_dir, move_or_copy, annot_wksh_merge_data, annot_file_name, pkc, dcc_fastq_folder){
   
   
   dir_loc <- paste0(save_dir, "/files_for_GEO_submission")
@@ -255,6 +257,10 @@ create_output_folder <- function(save_dir, move_or_copy, merged_annotations, ann
   # put PKC file in output
   
   file.copy(from = pkc$datapath, to = paste0(dir_loc, "/", pkc$name))
+  
+  # put annotation file in output
+  
+  writexl::write_xlsx(wksheet_merged, path = paste0(dir_loc, "/", annot_file_name, ".xlsx"))
   
   # put merged annotation file in output
   
