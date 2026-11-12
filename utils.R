@@ -8,6 +8,9 @@ library(dplyr)
 
 library(writexl)
 
+# for MD5 checksums
+library(digest)
+
 read_in_wkshts <- function(files, skip){
   
   dfs <- lapply(seq_len(nrow(files)), function(i){
@@ -260,7 +263,7 @@ create_output_folder <- function(save_dir, move_or_copy, annot_wksh_merge_data, 
   
   # put annotation file in output
   
-  writexl::write_xlsx(wksheet_merged, path = paste0(dir_loc, "/", annot_file_name, ".xlsx"))
+  writexl::write_xlsx(annot_wksh_merge_data, path = paste0(dir_loc, "/", annot_file_name, ".xlsx"))
   
   # put merged annotation file in output
   
@@ -301,6 +304,9 @@ calculate_MD5_checksums <- function(folder, fastq = F){
     MD5_Checksum = check_files,
     stringsAsFactors = FALSE
   )
+  
+  # get rid of rownames
+  rownames(checksum_data) <- NULL
   
   return(checksum_data)
 }

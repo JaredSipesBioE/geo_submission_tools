@@ -901,12 +901,14 @@ server <- function(input, output, session) {
   
   
   
-  ## Panel 6: Copy Output Files to new location
+  ## On Button Click - Copy or Move Output Files to new location
+  
+  # Confirm Copy/Move
   
   observeEvent(input$create_output, {
     
     
-    n_files <- length(list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T))
+    n_files <- length(list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T))
     
     # count all of the non-na values. 
     n_keep <- sum(!is.na(unlist((dcc_file_table[2:ncol(dcc_file_table)]))))
@@ -922,6 +924,8 @@ server <- function(input, output, session) {
     )
   })
   
+  # On confirmation, create output
+  
   observeEvent(input$confirm_create_output, {
 
     if(input$confirm_create_output){
@@ -932,73 +936,72 @@ server <- function(input, output, session) {
                            annot_wksh_merge_data = annot_wksh_merge_data(),
                            annot_file_name = input$annot_file_name)
       
-      # # get the dcc file table, dir input, and dir output
-      # dcc_file_table <- DCC_table_data()
-      # dcc_files_dir <- selected_dir_dcc()
-      # dcc_files_out <- selected_dir_out()
-
-      # # extract the list of SampleIDs to keep
-      # dcc_list_keep <- dcc_file_table$Sample_ID
-      # 
-      # 
-      # # get all dcc and fastq files
-      # files_all <- list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T, full.name = T)
-
-      # # create list of files to keep
-      # 
-      # keep_list <- unlist(dcc_file_table[2:ncol(dcc_file_table)], use.names = FALSE)
-
-
-      # create data table,set all files not in keep_list to move
-
-      # files_to_move <- as.data.frame(files_all) |> mutate(move = !(basename(files_all) %in% keep_list))
-      # 
-      # files_to_move <- files_to_move[files_to_move$move, ]
-
-      # for(file in files_to_move$files_all){
-      # 
-      #   filename <- basename(file)
-      #   extension <- tools::file_ext(filename)
-      #   name <- tools::file_path_sans_ext(filename)
-      # 
-      # 
-      #   dest <- file.path(dcc_files_out, basename(file))
-      #   # adds numbers if multiple duplicate files are detected.
-      #   i <- 1
-      # 
-      #   while(file.exists(dest)){
-      #     new_filename <- paste0(name, "_", i, ".", extension)
-      #     dest <- file.path(dcc_files_out, new_filename)
-      #     i <- i + 1
-      #   }
-      #   # if files have duplicate names, do not overwrite.
-      #   file.rename(from = file, to = dest)
-      # }
 
   }
     })
-    
   
-  # Checksums for FASTQ Files
-  MD5_checksums_fastq <- reactive({
+  # On button press, create MD5 checksums for files in output folder
+  
+  observeEvent(input$gen_checksum, {
     
-    req(DCC_table_data())
-    req(input$dir_dcc)
+    n_files <- length(list.files(path = paste0(selected_save_dir(), "/files_for_GEO_submission"), 
+                                 pattern = "\\.(dcc|gz|xlsx|pkc)$", 
+                                 recursive = T))
     
-    calculate_MD5_checksums(folder, fastq = T)
+    message <- paste0("Are you sure you wish to generate checksums for ", as.character(n_files), " files? This may take some time.")
+    
+    ask(
+      "confirm_gen_checksums", # id of input
+      p(message)
+    )
     
   })
   
-  # Checksums for Processed Data Files
-  MD5_checksums_other <- reactive({
-    
-    req(DCC_table_data())
-    req(input$dir_dcc)
-    
-    calculate_MD5_checksums(folder, fastq = F)
+  # On Yes, Proceed to generate checksums and display table
   
+  
+  observeEvent(input$confirm_gen_checksums, {
+    
+    dir_loc <- paste0(selected_save_dir(), "/files_for_GEO_submission")
+    
+    #checksums for processed dfs
+    checksums_proc_df <- calculate_MD5_checksums(dir_loc, fastq = F)
+    
+    #checksums for raw datafiles
+    checksums_raw_df <- calculate_MD5_checksums(dir_loc, fastq = T)
+    
+    # 
+    # fluidRow(DT::DTOutput("MD5_Checksum_FASTQ_Table"),
+    #          
+    #          DT::DTOutput("MD5_Checksum_Other_Table")
+    #          
+    
+    output$MD5_Checksum_FASTQ_Table <- DT::renderDT({
+      data <- checksums_proc_df
+      DT::datatable(data, selection = "multiple", 
+                    options = list(extensions = 'Scroller',
+                                   deferRender = TRUE,
+                                   scrollY = 500,
+                                   scroller = TRUE,
+                                   fillContainer = TRUE)
+      )
+    })
+    
+    output$MD5_Checksum_Other_Table <- DT::renderDT({
+      data <- checksums_raw_df
+      DT::datatable(data, selection = "multiple", 
+                    options = list(extensions = 'Scroller',
+                                   deferRender = TRUE,
+                                   scrollY = 500,
+                                   scroller = TRUE,
+                                   fillContainer = TRUE)
+      )
+    })
+    
+    
   })
   
+
   
   
 
