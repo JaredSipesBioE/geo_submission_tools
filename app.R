@@ -12,7 +12,7 @@ library(shiny)
 library(shinyFiles)
 # used for activating buttons as needed
 library(shinyjs)
-# used for nicer switch buttons
+# used for nicer switch buttons and progress bars
 library(shinyWidgets)
 
 library(bslib)
@@ -197,6 +197,8 @@ ui <- page_navbar(
                   textInput("library_strat", label = "Library Strategy", value = "Spatial Transcriptomics"),
               
                   textInput("organism", label = "Organism", value = "Homo sapiens"),
+                  
+                  style = "margin-top: 25px;"
                 ),
 
                 
@@ -259,7 +261,7 @@ ui <- page_navbar(
               
               sidebarPanel(
                 
-                shinyDirButton("select_save_dir", "Select Location Save Output Files", "Select a folder"),
+                shinyDirButton("select_save_dir", "Select Location to Save Output Files", "Select a folder"),
                 
                 verbatimTextOutput("path_save_dir"),
                 
@@ -279,15 +281,27 @@ ui <- page_navbar(
                 textOutput("file_operation_info"),
                 
                 
+                
                 column(width =7,
-                  actionButton("create_output", "Create Output Folder")
+                       
+                  progressBar("pb_create_output", value = 0, display_pct = TRUE),
+                  actionButton("create_output", "Create Output Folder"),
+                  
                   ),
+                
+               
                 
                 column(width = 7,
-                  actionButton("gen_checksum", "Generate MD5 Checksums")
+                       
+                  progressBar("pb_checksums", value = 0, display_pct = TRUE),
+                  actionButton("gen_checksum", "Generate MD5 Checksums"),
+                  
                   ),
                 
-                downloadButton("download_GEO_submission", "Download Geo Submission", class = "btn-block")
+                
+                
+                downloadButton("download_GEO_submission", "Download Geo Submission",
+                               style = "margin-top: 25px;")
 
                 
               ),

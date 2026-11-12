@@ -11,6 +11,10 @@ library(writexl)
 # for MD5 checksums
 library(digest)
 
+# for speeding up certain processes
+
+library(parallel)
+
 read_in_wkshts <- function(files, skip){
   
   dfs <- lapply(seq_len(nrow(files)), function(i){
@@ -296,7 +300,36 @@ calculate_MD5_checksums <- function(folder, fastq = F){
     files_to_process <- list.files(folder_path, pattern = ".dcc$|.xlsx$|.pkc$", full.names = TRUE)
   }
   
-  check_files <- sapply(files_to_process, digest, algo = "md5", file = TRUE)
+  
+  # run process in parallel to save time.
+  
+  ncores <- detectCores()
+  
+  if(!is.na(ncores)){
+    
+    # use half of available cores
+    
+    ncores <- detectCores() %/% 2
+    
+    f <- function(i) {
+      digest(i, algo = "md5", file = T)
+    }
+    
+    cl <- makeCluster(ncores)
+    clusterEvalQ(cl, library(digest))
+    check_files <- parLapply(cl, files_to_process, f)
+    stopCluster(cl)
+    
+  } else(
+    
+    # run if for some reason detect cores returns NA
+    
+    check_files <- sapply(files_to_process, digest, algo = "md5", file = TRUE)
+    
+  )
+  
+
+
   
   # Create a data frame with filenames and their checksums
   checksum_data <- data.frame(
