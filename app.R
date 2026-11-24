@@ -25,9 +25,19 @@ library(awn)
 # Separate Page for Functions Used
 source('utils.R')
 
+
+# mirai parallel processing
+
+daemons(4)                                  # once, at app start
+onStop(function() daemons(0))
+
+
+
 # sets max file size to 30 MB to allow pkc file uploads
 
 options(shiny.maxRequestSize = 30 * 1024^2)
+
+plan(multisession, workers = max(1, parallel::detectCores() - 1))
 
 ui <- page_navbar(
   
@@ -921,6 +931,8 @@ server <- function(input, output, session) {
   
   observeEvent(input$create_output, {
     
+    dcc_file_table <- DCC_table_data()
+    
     
     n_files <- length(list.files(path = dcc_files_dir, pattern = "\\.(dcc|gz)$", recursive = T))
     
@@ -941,6 +953,10 @@ server <- function(input, output, session) {
   # On confirmation, create output
   
   observeEvent(input$confirm_create_output, {
+    
+    switch_copy_move <- if(input$file_operation){"Moving "} else {"Copying "}
+    
+    m <- paste0(switch_copy_move, " files") # "Moving files" or "Copying files" as needed
 
     if(input$confirm_create_output){
       
@@ -948,7 +964,9 @@ server <- function(input, output, session) {
                            move_or_copy = input$file_operation, 
                            pkc = input$upload_pkc,
                            annot_wksh_merge_data = annot_wksh_merge_data(),
-                           annot_file_name = input$annot_file_name)
+                           annot_file_name = input$annot_file_name,
+                           dcc_fastq_folder = selected_dir_dcc()
+                           )
       
 
   }
@@ -984,11 +1002,6 @@ server <- function(input, output, session) {
     #checksums for raw datafiles
     checksums_raw_df <- calculate_MD5_checksums(dir_loc, fastq = T)
     
-    # 
-    # fluidRow(DT::DTOutput("MD5_Checksum_FASTQ_Table"),
-    #          
-    #          DT::DTOutput("MD5_Checksum_Other_Table")
-    #          
     
     output$MD5_Checksum_FASTQ_Table <- DT::renderDT({
       data <- checksums_proc_df

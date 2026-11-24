@@ -247,11 +247,16 @@ create_GEO_sample_records <- function(annotations, dcc_fastq_map, PKC_file_name,
 
 
 ### FUNCT: create_output_folder
-# The following function creates the output folder
-# saves .pkc, annotation file, and moves or copies processed and raw files.
+#' The following function creates the output folder and copies or moves all files
 
 
-create_output_folder <- function(save_dir, move_or_copy, annot_wksh_merge_data, annot_file_name, pkc, dcc_fastq_folder){
+
+
+
+
+create_output_folder <- function(save_dir, move_or_copy, annot_wksh_merge_data, annot_file_name, pkc, dcc_fastq_folder, 
+                                 session = shiny::getDefaultReactiveDomain()){
+
   
   
   dir_loc <- paste0(save_dir, "/files_for_GEO_submission")
@@ -265,19 +270,65 @@ create_output_folder <- function(save_dir, move_or_copy, annot_wksh_merge_data, 
   
   file.copy(from = pkc$datapath, to = paste0(dir_loc, "/", pkc$name))
   
-  # put annotation file in output
-  
-  writexl::write_xlsx(annot_wksh_merge_data, path = paste0(dir_loc, "/", annot_file_name, ".xlsx"))
-  
   # put merged annotation file in output
   
-  #check if move_or_copy working correctly 
-  if(move_or_copy){
-    print("move")
-  } else {
-    print("copy")
-  }
+  writexl::write_xlsx(annot_wksh_merge_data, 
+                      path = paste0(dir_loc, "/", annot_file_name, ".xlsx"))
   
+  
+  
+  # get all candidate files to move or copy
+  files <- list.files(dcc_fastq_folder, pattern = "\\.dcc$|\\.gz$", recursive = TRUE, full.names = TRUE)
+  base_files <- basename(files)
+  
+  
+  # select only the files that have matching Sample_IDs
+  
+  
+  matches <- lapply(annot_wksh_merge_data$Sample_ID, 
+                    function(ID){
+                      files[grepl(ID, base_files, fixed = TRUE)]
+                      }) |> unlist()
+  
+  
+  n <- length(matches)
+    
+  
+  dest <- file.path(dir_loc, basename(matches))
+  
+  
+  chunk_size <- max(1L, ceiling(n / 100))             # ~100 progress updates total
+  chunks <- split(seq_len(n), ceiling(seq_len(n) / chunk_size))
+  
+  
+  done <- 0L
+  ok <- logical(n)
+  
+
+  for (ix in chunks){
+    # ... copy or move ...
+
+    ok[ix] <- if (move_or_copy) {
+      file.rename(matches[ix], dest[ix])
+    } else {
+      file.copy(matches[ix], dest[ix], overwrite = TRUE, copy.mode = FALSE)
+    }
+    
+    
+    done <- done + length(ix)
+
+    shinyWidgets::updateProgressBar(
+      session = session,
+      id = "pb_create_output",
+      value = done,
+      total = n,
+      title = paste("Files", done, "of", n)
+    )
+
+  }
+
+ 
+
 }
 
 
