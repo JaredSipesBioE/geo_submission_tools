@@ -26,10 +26,10 @@ library(awn)
 source('utils.R')
 
 
-# mirai parallel processing
-
-daemons(4)                                  # once, at app start
-onStop(function() daemons(0))
+# # mirai parallel processing
+# 
+# daemons(4)                                  # once, at app start
+# onStop(function() daemons(0))
 
 
 
@@ -37,7 +37,7 @@ onStop(function() daemons(0))
 
 options(shiny.maxRequestSize = 30 * 1024^2)
 
-plan(multisession, workers = max(1, parallel::detectCores() - 1))
+# plan(multisession, workers = max(1, parallel::detectCores() - 1))
 
 ui <- page_navbar(
   
@@ -334,6 +334,9 @@ ui <- page_navbar(
   id = "page", 
 )
 
+
+####### SERVER ########
+
 server <- function(input, output, session) {
   
   rows_to_delete <- reactiveValues(rows = c())
@@ -345,7 +348,7 @@ server <- function(input, output, session) {
     rows_to_delete$rows
   })
   
- #### Panel 1 - Upload Worksheets #####
+  #### Panel 1 - Upload Worksheets ####
   
   wksheet_data <- reactive({
     
@@ -863,6 +866,15 @@ server <- function(input, output, session) {
     )
   })
   
+  
+  output$download_GEO_sample <- downloadHandler(
+    
+    filename = "GEO_Sample_Table.xlsx",
+    content = function(file) {
+      write_xlsx(geo_sample_data(), file)
+    }
+    
+  )
   
   # col_order <- c("library_name", "title", "library strategy", "organism", "cell type", "segment label", 
   #                "Roi", "molecule", "single or paired-end", "instrument model", "description")
